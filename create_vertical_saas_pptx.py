@@ -1,419 +1,487 @@
 #!/usr/bin/env python3
-"""Generate a PowerPoint presentation on Vertical Approach in SaaS."""
+"""
+Generate a Vertical SaaS Guide PowerPoint using the SD Worx template.
+Uses the template's slide layouts, theme colors, and fonts.
+"""
 
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
 from pptx.enum.shapes import MSO_SHAPE
+import copy
 
-prs = Presentation()
-prs.slide_width = Inches(13.333)
-prs.slide_height = Inches(7.5)
+TEMPLATE = "/home/user/Claude-Code-April/2602 - SD Worx PowerPoint GOED .pptx"
+OUTPUT = "/home/user/Claude-Code-April/Vertical_Approach_SaaS_Guide.pptx"
 
-# ── Color palette ──
-DARK_BG = RGBColor(0x1B, 0x1B, 0x2F)
-ACCENT_BLUE = RGBColor(0x00, 0x9E, 0xFF)
-ACCENT_GREEN = RGBColor(0x00, 0xC9, 0x8D)
-ACCENT_PURPLE = RGBColor(0x7C, 0x5C, 0xFC)
-ACCENT_ORANGE = RGBColor(0xFF, 0x8C, 0x42)
+# SD Worx theme colors
+DK1 = RGBColor(0x30, 0x36, 0x42)      # Dark navy
+ACCENT2 = RGBColor(0x43, 0x8A, 0xB5)  # Blue
+ACCENT3 = RGBColor(0x75, 0x82, 0x9B)  # Slate gray
+ACCENT4 = RGBColor(0xE4, 0xE6, 0xEC)  # Light gray
+ACCENT5 = RGBColor(0xFF, 0x4E, 0x0F)  # SD Worx Orange
+ACCENT6 = RGBColor(0x7A, 0x00, 0x51)  # SD Worx Purple/Magenta
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-LIGHT_GRAY = RGBColor(0xBB, 0xBB, 0xCC)
-MEDIUM_GRAY = RGBColor(0x88, 0x88, 0x99)
-CARD_BG = RGBColor(0x26, 0x26, 0x40)
+BLACK = RGBColor(0x00, 0x00, 0x00)
+
+# Load template
+prs = Presentation(TEMPLATE)
+
+# Map layout names to layout objects
+layout_map = {}
+for layout in prs.slide_layouts:
+    layout_map[layout.name] = layout
+
+# Remove all existing slides
+while len(prs.slides) > 0:
+    rId = prs.slides._sldIdLst[0].get('{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id')
+    prs.part.drop_rel(rId)
+    prs.slides._sldIdLst.remove(prs.slides._sldIdLst[0])
+
+# ── Helper functions ──
+def get_layout(name):
+    """Get a layout by name, with fallback."""
+    if name in layout_map:
+        return layout_map[name]
+    # Fallback search
+    for k, v in layout_map.items():
+        if name.lower() in k.lower():
+            return v
+    return prs.slide_layouts[0]
 
 
-def set_slide_bg(slide, color):
-    bg = slide.background
-    fill = bg.fill
-    fill.solid()
-    fill.fore_color.rgb = color
+def set_placeholder_text(slide, idx, text, font_size=None, bold=None, color=None):
+    """Set text on a placeholder by index, if it exists."""
+    for ph in slide.placeholders:
+        if ph.placeholder_format.idx == idx:
+            ph.text = text
+            if ph.text_frame.paragraphs:
+                para = ph.text_frame.paragraphs[0]
+                if font_size or bold is not None or color:
+                    for run in para.runs:
+                        if font_size:
+                            run.font.size = Pt(font_size)
+                        if bold is not None:
+                            run.font.bold = bold
+                        if color:
+                            run.font.color.rgb = color
+            return ph
+    return None
 
 
-def add_shape(slide, left, top, width, height, fill_color, border_color=None, radius=None):
-    shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height)
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = fill_color
-    if border_color:
-        shape.line.color.rgb = border_color
-        shape.line.width = Pt(1.5)
-    else:
-        shape.line.fill.background()
-    return shape
+def set_placeholder_bullets(slide, idx, items, font_size=14, color=None):
+    """Set bulleted text on a placeholder."""
+    for ph in slide.placeholders:
+        if ph.placeholder_format.idx == idx:
+            tf = ph.text_frame
+            tf.clear()
+            for i, item in enumerate(items):
+                if i == 0:
+                    p = tf.paragraphs[0]
+                else:
+                    p = tf.add_paragraph()
+                p.text = item
+                p.font.size = Pt(font_size)
+                if color:
+                    p.font.color.rgb = color
+                p.space_after = Pt(6)
+            return ph
+    return None
 
 
-def add_text_box(slide, left, top, width, height, text, font_size=18, color=WHITE,
-                 bold=False, alignment=PP_ALIGN.LEFT, font_name="Calibri"):
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
-    tf.word_wrap = True
-    p = tf.paragraphs[0]
-    p.text = text
-    p.font.size = Pt(font_size)
-    p.font.color.rgb = color
-    p.font.bold = bold
-    p.font.name = font_name
-    p.alignment = alignment
-    return txBox
-
-
-def add_bullet_slide_content(slide, bullets, left, top, width, height,
-                              font_size=17, color=WHITE):
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
-    tf.word_wrap = True
-    for i, bullet in enumerate(bullets):
-        if i == 0:
-            p = tf.paragraphs[0]
-        else:
-            p = tf.add_paragraph()
-        p.text = bullet
-        p.font.size = Pt(font_size)
-        p.font.color.rgb = color
-        p.font.name = "Calibri"
-        p.space_after = Pt(10)
-        p.level = 0
-    return txBox
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 1 – Title Slide
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
-set_slide_bg(slide, DARK_BG)
-
-# Accent bar top
-add_shape(slide, Inches(0), Inches(0), Inches(13.333), Inches(0.08), ACCENT_BLUE)
-
-# Title
-add_text_box(slide, Inches(1), Inches(1.8), Inches(11), Inches(1.5),
-             "The Vertical Approach in SaaS",
-             font_size=44, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
-
-# Subtitle
-add_text_box(slide, Inches(2), Inches(3.4), Inches(9), Inches(1),
-             "A Strategic Guide to Building Industry-Specific Software Solutions",
-             font_size=24, color=LIGHT_GRAY, alignment=PP_ALIGN.CENTER)
-
-# Divider line
-shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(5), Inches(4.6), Inches(3.333), Pt(3))
-shape.fill.solid()
-shape.fill.fore_color.rgb = ACCENT_BLUE
-shape.line.fill.background()
-
-add_text_box(slide, Inches(2), Inches(5.2), Inches(9), Inches(0.8),
-             "What every founder, product leader, and GTM team needs to know",
-             font_size=18, color=MEDIUM_GRAY, alignment=PP_ALIGN.CENTER)
+def add_content_slide(layout_name, title, subtitle, body_items, font_size=14):
+    """Add a standard content slide."""
+    slide = prs.slides.add_slide(get_layout(layout_name))
+    set_placeholder_text(slide, 0, title)
+    set_placeholder_text(slide, 14, subtitle)
+    set_placeholder_bullets(slide, 1, body_items, font_size=font_size)
+    return slide
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SLIDE 2 – What Is a Vertical SaaS Approach?
+# SLIDE 1 – Cover / Title
 # ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-set_slide_bg(slide, DARK_BG)
+slide = prs.slides.add_slide(get_layout('Cover text - option 1'))
+set_placeholder_text(slide, 0, "The Vertical Approach\nin SaaS")
+set_placeholder_text(slide, 10, "A Strategic Guide to Building Industry-Specific Software Solutions")
+set_placeholder_text(slide, 12, "What every founder, product leader, and GTM team needs to know")
+set_placeholder_text(slide, 13, "2026")
 
-add_text_box(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.9),
-             "What Is a Vertical SaaS Approach?",
-             font_size=36, color=ACCENT_BLUE, bold=True)
 
-# Left column – definition
-add_shape(slide, Inches(0.8), Inches(1.7), Inches(5.6), Inches(5), CARD_BG, ACCENT_BLUE)
-add_text_box(slide, Inches(1.2), Inches(1.9), Inches(4.8), Inches(0.7),
-             "Definition", font_size=22, color=ACCENT_BLUE, bold=True)
-add_bullet_slide_content(slide, [
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 2 – Agenda / Overview
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Agenda - option 1'))
+set_placeholder_text(slide, 0, "Agenda")
+set_placeholder_text(slide, 14, "What we will cover today")
+set_placeholder_bullets(slide, 16, [
+    "1\tWhat is Vertical SaaS?",
+    "2\tWhy Go Vertical? Strategic Advantages",
+    "3\tChoosing the Right Vertical",
+    "4\tProduct Strategy: Building for the Vertical",
+    "5\tGo-to-Market Playbook",
+    "6\tKey Metrics & Benchmarks",
+    "7\tCommon Pitfalls to Avoid",
+    "8\tScaling & Expansion Framework",
+    "9\tKey Takeaways",
+], font_size=16)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 3 – Chapter: What is Vertical SaaS?
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Chapter text - option 1'))
+set_placeholder_text(slide, 11, "01")
+set_placeholder_text(slide, 0, "What Is a Vertical\nSaaS Approach?")
+set_placeholder_text(slide, 10, "Understanding the model and how it differs from horizontal SaaS")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 4 – What is Vertical SaaS (2-block)
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Content - 2 blocks'))
+set_placeholder_text(slide, 0, "Vertical vs. Horizontal SaaS")
+set_placeholder_text(slide, 18, "Two fundamentally different approaches to building software")
+
+# Left block
+set_placeholder_text(slide, 19, "Vertical SaaS", bold=True)
+set_placeholder_bullets(slide, 1, [
     "Software built for ONE specific industry or niche",
     "Deeply tailored workflows, compliance & terminology",
     "End-to-end solution replacing horizontal point tools",
     "Examples: Veeva (pharma), Procore (construction), Toast (restaurants)",
-], Inches(1.2), Inches(2.7), Inches(4.8), Inches(3.8), font_size=16)
+    "Smaller TAM but higher win rate and stickiness",
+], font_size=13)
 
-# Right column – vs horizontal
-add_shape(slide, Inches(6.9), Inches(1.7), Inches(5.6), Inches(5), CARD_BG, ACCENT_PURPLE)
-add_text_box(slide, Inches(7.3), Inches(1.9), Inches(4.8), Inches(0.7),
-             "Vertical vs. Horizontal SaaS", font_size=22, color=ACCENT_PURPLE, bold=True)
-
-comparisons = [
-    "Vertical: Deep domain expertise  |  Horizontal: Broad feature set",
-    "Vertical: Smaller TAM, higher win rate  |  Horizontal: Large TAM, more competition",
-    "Vertical: Industry-specific compliance  |  Horizontal: General-purpose",
-    "Vertical: Higher NRR & stickiness  |  Horizontal: Easier initial adoption",
-]
-add_bullet_slide_content(slide, comparisons,
-                         Inches(7.3), Inches(2.7), Inches(4.8), Inches(3.8), font_size=15)
+# Right block
+set_placeholder_text(slide, 22, "Horizontal SaaS", bold=True)
+set_placeholder_bullets(slide, 23, [
+    "Software built for any industry or use case",
+    "Broad feature set, generic terminology and UX",
+    "Point solution for a specific function (CRM, HR, etc.)",
+    "Examples: Salesforce, HubSpot, Slack, Asana",
+    "Larger TAM but more competition and lower retention",
+], font_size=13)
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SLIDE 3 – Why Go Vertical?
+# SLIDE 5 – Chapter: Why Go Vertical?
 # ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-set_slide_bg(slide, DARK_BG)
-
-add_text_box(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.9),
-             "Why Go Vertical? The Strategic Advantages",
-             font_size=36, color=ACCENT_GREEN, bold=True)
-
-advantages = [
-    ("Higher Win Rates", "Prospects see you as the expert. You speak their language,\nunderstand their pain, and demo workflows they recognize.", ACCENT_BLUE),
-    ("Stronger Retention", "Deep integration into daily operations = high switching costs.\nVertical SaaS often sees 120-140%+ NRR.", ACCENT_GREEN),
-    ("Efficient GTM", "Concentrated buyer personas, focused conferences,\nindustry publications, and word-of-mouth referrals.", ACCENT_PURPLE),
-    ("Pricing Power", "Industry-specific value justifies premium pricing.\nCustomers pay for outcomes, not generic features.", ACCENT_ORANGE),
-]
-
-for i, (title, desc, color) in enumerate(advantages):
-    col = i % 4
-    x = Inches(0.6 + col * 3.1)
-    y = Inches(1.8)
-    add_shape(slide, x, y, Inches(2.9), Inches(4.8), CARD_BG, color)
-    add_text_box(slide, x + Inches(0.3), y + Inches(0.3), Inches(2.3), Inches(0.7),
-                 title, font_size=20, color=color, bold=True)
-    add_text_box(slide, x + Inches(0.3), y + Inches(1.2), Inches(2.3), Inches(3.2),
-                 desc, font_size=15, color=LIGHT_GRAY)
+slide = prs.slides.add_slide(get_layout('Chapter text - option 2'))
+set_placeholder_text(slide, 11, "02")
+set_placeholder_text(slide, 0, "Why Go Vertical?")
+set_placeholder_text(slide, 10, "The strategic advantages of a vertical SaaS approach")
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SLIDE 4 – Choosing Your Vertical
+# SLIDE 6 – Why Go Vertical (4-block)
 # ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-set_slide_bg(slide, DARK_BG)
+slide = prs.slides.add_slide(get_layout('Content - 4 blocks option 1'))
+set_placeholder_text(slide, 0, "Strategic Advantages of Vertical SaaS")
+set_placeholder_text(slide, 18, "Four key reasons why going vertical wins")
 
-add_text_box(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.9),
-             "Choosing the Right Vertical: Selection Criteria",
-             font_size=36, color=ACCENT_ORANGE, bold=True)
+# Block titles (with number indicators)
+set_placeholder_text(slide, 33, "1")
+set_placeholder_text(slide, 19, "Higher Win Rates", bold=True)
+set_placeholder_bullets(slide, 29, [
+    "Prospects see you as the expert",
+    "You speak their language and understand their pain",
+    "Demo workflows they recognize immediately",
+], font_size=11)
 
-criteria = [
-    "Market Size & Density  --  Is the TAM large enough? Are buyers concentrated or fragmented?",
-    "Underserved by Tech  --  Are incumbents still using spreadsheets, paper, or legacy on-prem systems?",
-    "Regulatory Complexity  --  Industries with compliance needs (HIPAA, SOX, FDA) create moats for vertical players",
-    "Willingness to Pay  --  Does the industry have healthy margins? Do they already budget for software?",
-    "Domain Access  --  Do you have founder-market fit? Can you access early design partners?",
-    "Workflow Standardization  --  Are core workflows consistent enough to build a scalable product?",
-    "Expansion Potential  --  Can you layer on payments, financing, marketplace, or data products?",
-]
+set_placeholder_text(slide, 34, "2")
+set_placeholder_text(slide, 28, "Stronger Retention", bold=True)
+set_placeholder_bullets(slide, 30, [
+    "Deep integration = high switching costs",
+    "Vertical SaaS often sees 120-140%+ NRR",
+    "Becomes system of record for the business",
+], font_size=11)
 
-for i, item in enumerate(criteria):
-    y = Inches(1.7 + i * 0.75)
-    # Number circle
-    circle = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(0.9), y + Inches(0.05), Inches(0.45), Inches(0.45))
-    circle.fill.solid()
-    circle.fill.fore_color.rgb = ACCENT_ORANGE
-    circle.line.fill.background()
-    tf = circle.text_frame
-    tf.word_wrap = False
-    p = tf.paragraphs[0]
-    p.text = str(i + 1)
-    p.font.size = Pt(16)
-    p.font.bold = True
-    p.font.color.rgb = DARK_BG
-    p.alignment = PP_ALIGN.CENTER
-    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+set_placeholder_text(slide, 35, "3")
+set_placeholder_text(slide, 25, "Efficient GTM", bold=True)
+set_placeholder_bullets(slide, 17, [
+    "Concentrated buyer personas",
+    "Focused conferences & trade publications",
+    "Word-of-mouth referrals spread fast",
+], font_size=11)
 
-    add_text_box(slide, Inches(1.6), y, Inches(10.5), Inches(0.6),
-                 item, font_size=17, color=WHITE)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 5 – Product Strategy
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-set_slide_bg(slide, DARK_BG)
-
-add_text_box(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.9),
-             "Product Strategy: Building for the Vertical",
-             font_size=36, color=ACCENT_BLUE, bold=True)
-
-# Three pillars
-pillars = [
-    ("1. Deep Domain Modeling", [
-        "Map the industry value chain end to end",
-        "Build domain-specific data models & objects",
-        "Use industry terminology in UX (not generic labels)",
-        "Embed compliance rules into the product itself",
-    ], ACCENT_BLUE),
-    ("2. Workflow-First Design", [
-        "Shadow real users in their environment",
-        "Digitize existing paper / manual processes first",
-        "Automate the boring, error-prone steps",
-        "Design for the least technical user persona",
-    ], ACCENT_GREEN),
-    ("3. Platform & Ecosystem", [
-        "Integrate with industry-specific tools & ERPs",
-        "Build APIs for partner / channel integrations",
-        "Create a data layer for analytics & benchmarking",
-        "Plan for embedded fintech (payments, lending, insurance)",
-    ], ACCENT_PURPLE),
-]
-
-for i, (title, items, color) in enumerate(pillars):
-    x = Inches(0.6 + i * 4.15)
-    add_shape(slide, x, Inches(1.7), Inches(3.9), Inches(5.2), CARD_BG, color)
-    add_text_box(slide, x + Inches(0.3), Inches(1.9), Inches(3.3), Inches(0.7),
-                 title, font_size=20, color=color, bold=True)
-    add_bullet_slide_content(slide, items,
-                             x + Inches(0.3), Inches(2.7), Inches(3.3), Inches(3.8), font_size=15)
+set_placeholder_text(slide, 36, "4")
+set_placeholder_text(slide, 32, "Pricing Power", bold=True)
+set_placeholder_bullets(slide, 31, [
+    "Industry-specific value justifies premium pricing",
+    "Customers pay for outcomes, not features",
+    "Ability to layer on fintech, data, services",
+], font_size=11)
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SLIDE 6 – Go-to-Market Playbook
+# SLIDE 7 – Chapter: Choosing Your Vertical
 # ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-set_slide_bg(slide, DARK_BG)
-
-add_text_box(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.9),
-             "Go-to-Market Playbook for Vertical SaaS",
-             font_size=36, color=ACCENT_GREEN, bold=True)
-
-gtm_items = [
-    ("Land with a Wedge", "Start with ONE critical pain point. Win a single workflow before expanding to a full suite. Early adopters become your evangelists.", ACCENT_BLUE),
-    ("Industry-Native Sales", "Hire reps from the industry, not just SaaS. Attend vertical trade shows. Publish thought leadership in trade publications.", ACCENT_GREEN),
-    ("Customer-Led Growth", "Case studies, ROI calculators, peer referrals. In tight verticals, reputation spreads fast -- both good and bad.", ACCENT_PURPLE),
-    ("Expand Revenue Per Account", "Layer on modules, payments, data products, and professional services. Vertical SaaS can often 3-5x initial ACV over time.", ACCENT_ORANGE),
-]
-
-for i, (title, desc, color) in enumerate(gtm_items):
-    y = Inches(1.7 + i * 1.4)
-    add_shape(slide, Inches(0.8), y, Inches(11.5), Inches(1.2), CARD_BG, color)
-    add_text_box(slide, Inches(1.2), y + Inches(0.1), Inches(3), Inches(0.6),
-                 title, font_size=20, color=color, bold=True)
-    add_text_box(slide, Inches(1.2), y + Inches(0.6), Inches(10.5), Inches(0.5),
-                 desc, font_size=15, color=LIGHT_GRAY)
+slide = prs.slides.add_slide(get_layout('Chapter text - option 1'))
+set_placeholder_text(slide, 11, "03")
+set_placeholder_text(slide, 0, "Choosing the\nRight Vertical")
+set_placeholder_text(slide, 10, "Selection criteria for identifying the best industry to target")
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SLIDE 7 – Key Metrics & Benchmarks
+# SLIDE 8 – Selection Criteria (content)
 # ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-set_slide_bg(slide, DARK_BG)
-
-add_text_box(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.9),
-             "Key Metrics & Benchmarks for Vertical SaaS",
-             font_size=36, color=ACCENT_PURPLE, bold=True)
-
-metrics = [
-    ("Net Revenue\nRetention", "120-140%+", "Best-in-class verticals expand\nwithin accounts aggressively", ACCENT_BLUE),
-    ("Gross\nMargin", "70-80%+", "Can be lower if services-heavy;\naim for software-like margins", ACCENT_GREEN),
-    ("CAC Payback", "12-18 mo", "Efficient GTM due to\nconcentrated buyer base", ACCENT_PURPLE),
-    ("Logo\nRetention", "90-95%+", "High switching costs\nkeep churn low", ACCENT_ORANGE),
-    ("Market\nPenetration", "10-30%", "Realistic ceiling within a\nsingle vertical segment", ACCENT_BLUE),
-]
-
-for i, (label, value, desc, color) in enumerate(metrics):
-    x = Inches(0.4 + i * 2.55)
-    add_shape(slide, x, Inches(1.8), Inches(2.35), Inches(4.8), CARD_BG, color)
-    add_text_box(slide, x + Inches(0.15), Inches(2.0), Inches(2.05), Inches(0.9),
-                 label, font_size=16, color=LIGHT_GRAY, alignment=PP_ALIGN.CENTER)
-    add_text_box(slide, x + Inches(0.15), Inches(3.0), Inches(2.05), Inches(0.9),
-                 value, font_size=36, color=color, bold=True, alignment=PP_ALIGN.CENTER)
-    add_text_box(slide, x + Inches(0.15), Inches(4.1), Inches(2.05), Inches(1.2),
-                 desc, font_size=14, color=LIGHT_GRAY, alignment=PP_ALIGN.CENTER)
+slide = add_content_slide(
+    'Content',
+    "Vertical Selection Criteria",
+    "Seven key factors to evaluate before committing to a vertical",
+    [
+        "Market Size & Density — Is the TAM large enough? Are buyers concentrated or fragmented?",
+        "Underserved by Tech — Are incumbents still using spreadsheets, paper, or legacy on-prem systems?",
+        "Regulatory Complexity — Industries with compliance needs (HIPAA, SOX, FDA) create natural moats",
+        "Willingness to Pay — Does the industry have healthy margins? Do they already budget for software?",
+        "Domain Access — Do you have founder-market fit? Can you access early design partners?",
+        "Workflow Standardization — Are core workflows consistent enough to build a scalable product?",
+        "Expansion Potential — Can you layer on payments, financing, marketplace, or data products?",
+    ],
+    font_size=14
+)
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SLIDE 8 – Common Pitfalls
+# SLIDE 9 – Chapter: Product Strategy
 # ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-set_slide_bg(slide, DARK_BG)
-
-add_text_box(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.9),
-             "Common Pitfalls to Avoid",
-             font_size=36, color=ACCENT_ORANGE, bold=True)
-
-pitfalls = [
-    ("Going Too Broad Too Soon", "Resist the temptation to serve adjacent verticals before dominating your first one. Depth beats breadth early on."),
-    ("Ignoring Services Revenue", "Many verticals expect onboarding, training, and customization. Build a services motion -- don't treat it as a distraction."),
-    ("Underestimating Compliance", "Regulatory requirements aren't optional. Bake compliance (HIPAA, PCI, SOC 2, industry regs) into the product from day one."),
-    ("Building for Power Users Only", "Your ICP may include non-technical users. If the UX requires training, you'll lose deals to simpler (even inferior) tools."),
-    ("Neglecting Data & Analytics", "Your aggregated data is a strategic asset. Industry benchmarking and insights can become a standalone revenue stream."),
-    ("Over-Customizing Per Client", "Custom work that only one customer needs erodes margins. Build configurable, not custom. Say no to one-off requests."),
-]
-
-for i, (title, desc) in enumerate(pitfalls):
-    col = i % 3
-    row = i // 3
-    x = Inches(0.6 + col * 4.1)
-    y = Inches(1.7 + row * 2.8)
-    add_shape(slide, x, y, Inches(3.85), Inches(2.5), CARD_BG, ACCENT_ORANGE)
-    add_text_box(slide, x + Inches(0.25), y + Inches(0.2), Inches(3.35), Inches(0.6),
-                 title, font_size=18, color=ACCENT_ORANGE, bold=True)
-    add_text_box(slide, x + Inches(0.25), y + Inches(0.85), Inches(3.35), Inches(1.4),
-                 desc, font_size=14, color=LIGHT_GRAY)
+slide = prs.slides.add_slide(get_layout('Chapter text - option 2'))
+set_placeholder_text(slide, 11, "04")
+set_placeholder_text(slide, 0, "Product Strategy")
+set_placeholder_text(slide, 10, "Building for the vertical: domain modeling, workflows, and platform")
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SLIDE 9 – Scaling & Expansion Framework
+# SLIDE 10 – Product Strategy (3-block)
 # ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-set_slide_bg(slide, DARK_BG)
+slide = prs.slides.add_slide(get_layout('Content - 3 blocks'))
+set_placeholder_text(slide, 0, "Three Pillars of Vertical Product Strategy")
+set_placeholder_text(slide, 18, "How to build a product that dominates its vertical")
 
-add_text_box(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.9),
-             "Scaling Your Vertical SaaS: The Expansion Framework",
-             font_size=36, color=ACCENT_BLUE, bold=True)
+set_placeholder_text(slide, 19, "Deep Domain Modeling", bold=True)
+set_placeholder_bullets(slide, 1, [
+    "Map the industry value chain end to end",
+    "Build domain-specific data models & objects",
+    "Use industry terminology in UX",
+    "Embed compliance rules into the product",
+], font_size=12)
 
-phases = [
-    ("Phase 1\nWedge", "Single killer workflow\n5-20 design partners\nProve ROI in one use case\nAchieve product-market fit", ACCENT_BLUE),
-    ("Phase 2\nSuite", "Add adjacent workflows\nBecome system of record\nLaunch self-serve onboarding\nHit $1-5M ARR", ACCENT_GREEN),
-    ("Phase 3\nPlatform", "APIs & integrations layer\nEmbedded fintech\nMarketplace / app store\nHit $10-30M ARR", ACCENT_PURPLE),
-    ("Phase 4\nEcosystem", "Data & benchmarking products\nAdjacent vertical expansion\nM&A bolt-ons\nScale to $50M+ ARR", ACCENT_ORANGE),
-]
+set_placeholder_text(slide, 28, "Workflow-First Design", bold=True)
+set_placeholder_bullets(slide, 29, [
+    "Shadow real users in their environment",
+    "Digitize existing paper/manual processes",
+    "Automate boring, error-prone steps",
+    "Design for the least technical user",
+], font_size=12)
 
-for i, (phase, items, color) in enumerate(phases):
-    x = Inches(0.5 + i * 3.15)
-    add_shape(slide, x, Inches(1.8), Inches(2.9), Inches(5), CARD_BG, color)
-    add_text_box(slide, x + Inches(0.2), Inches(2.0), Inches(2.5), Inches(1),
-                 phase, font_size=22, color=color, bold=True, alignment=PP_ALIGN.CENTER)
-    add_text_box(slide, x + Inches(0.2), Inches(3.2), Inches(2.5), Inches(3.2),
-                 items, font_size=15, color=LIGHT_GRAY, alignment=PP_ALIGN.CENTER)
-
-    # Arrow between phases
-    if i < 3:
-        arrow = slide.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW,
-                                        x + Inches(3.0), Inches(4.0), Inches(0.25), Inches(0.35))
-        arrow.fill.solid()
-        arrow.fill.fore_color.rgb = MEDIUM_GRAY
-        arrow.line.fill.background()
+set_placeholder_text(slide, 25, "Platform & Ecosystem", bold=True)
+set_placeholder_bullets(slide, 30, [
+    "Integrate with industry-specific ERPs",
+    "Build APIs for partner integrations",
+    "Create analytics & benchmarking layer",
+    "Plan for embedded fintech",
+], font_size=12)
 
 
 # ═══════════════════════════════════════════════════════════════════
-# SLIDE 10 – Key Takeaways
+# SLIDE 11 – Chapter: Go-to-Market
 # ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(prs.slide_layouts[6])
-set_slide_bg(slide, DARK_BG)
+slide = prs.slides.add_slide(get_layout('Chapter text - option 1'))
+set_placeholder_text(slide, 11, "05")
+set_placeholder_text(slide, 0, "Go-to-Market\nPlaybook")
+set_placeholder_text(slide, 10, "Selling, expanding, and growing in a focused vertical")
 
-add_shape(slide, Inches(0), Inches(0), Inches(13.333), Inches(0.08), ACCENT_GREEN)
 
-add_text_box(slide, Inches(1), Inches(0.8), Inches(11), Inches(1),
-             "Key Takeaways",
-             font_size=40, color=WHITE, bold=True, alignment=PP_ALIGN.CENTER)
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 12 – GTM Playbook (4-block)
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Content - 4 blocks option 1'))
+set_placeholder_text(slide, 0, "The Vertical SaaS GTM Playbook")
+set_placeholder_text(slide, 18, "Four phases of a winning go-to-market motion")
 
-takeaways = [
-    "Go deep before going wide -- dominate one vertical before expanding",
-    "Build with domain experts, not just engineers -- hire from the industry",
-    "Compliance and workflows ARE the product -- not afterthoughts",
-    "Your GTM is your moat -- industry relationships compound over time",
-    "Layer revenue streams -- software, payments, data, services",
-    "Vertical SaaS businesses command premium valuations (10-20x+ ARR) due to stickiness and expansion",
-]
+set_placeholder_text(slide, 33, "1")
+set_placeholder_text(slide, 19, "Land with a Wedge", bold=True)
+set_placeholder_bullets(slide, 29, [
+    "Start with ONE critical pain point",
+    "Win a single workflow before expanding",
+    "Early adopters become evangelists",
+], font_size=11)
 
-for i, item in enumerate(takeaways):
-    y = Inches(2.0 + i * 0.82)
-    # Checkmark box
-    check = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                                    Inches(1.5), y + Inches(0.05), Inches(0.4), Inches(0.4))
-    check.fill.solid()
-    check.fill.fore_color.rgb = ACCENT_GREEN
-    check.line.fill.background()
-    tf = check.text_frame
-    p = tf.paragraphs[0]
-    p.text = "\u2713"
-    p.font.size = Pt(18)
-    p.font.bold = True
-    p.font.color.rgb = DARK_BG
-    p.alignment = PP_ALIGN.CENTER
+set_placeholder_text(slide, 34, "2")
+set_placeholder_text(slide, 28, "Industry-Native Sales", bold=True)
+set_placeholder_bullets(slide, 30, [
+    "Hire reps from the industry",
+    "Attend vertical trade shows",
+    "Publish thought leadership in trade publications",
+], font_size=11)
 
-    add_text_box(slide, Inches(2.2), y, Inches(9.5), Inches(0.6),
-                 item, font_size=19, color=WHITE)
+set_placeholder_text(slide, 35, "3")
+set_placeholder_text(slide, 25, "Customer-Led Growth", bold=True)
+set_placeholder_bullets(slide, 17, [
+    "Case studies & ROI calculators",
+    "Peer referrals in tight communities",
+    "Reputation spreads fast — good and bad",
+], font_size=11)
+
+set_placeholder_text(slide, 36, "4")
+set_placeholder_text(slide, 32, "Expand Revenue", bold=True)
+set_placeholder_bullets(slide, 31, [
+    "Layer on modules, payments, data",
+    "Professional services motion",
+    "3-5x initial ACV over time",
+], font_size=11)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 13 – Chapter: Key Metrics
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Chapter text - option 2'))
+set_placeholder_text(slide, 11, "06")
+set_placeholder_text(slide, 0, "Key Metrics &\nBenchmarks")
+set_placeholder_text(slide, 10, "What good looks like for vertical SaaS businesses")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 14 – Metrics (content)
+# ═══════════════════════════════════════════════════════════════════
+slide = add_content_slide(
+    'Content',
+    "Vertical SaaS Benchmarks",
+    "Target metrics for a healthy vertical SaaS business",
+    [
+        "Net Revenue Retention: 120-140%+ — Best-in-class verticals expand aggressively within accounts",
+        "Gross Margin: 70-80%+ — Can be lower if services-heavy; aim for software-like margins over time",
+        "CAC Payback: 12-18 months — Efficient GTM thanks to a concentrated buyer base",
+        "Logo Retention: 90-95%+ — High switching costs and deep workflow integration keep churn low",
+        "Market Penetration: 10-30% — Realistic ceiling within a single vertical segment before expanding",
+        "ACV Expansion: 3-5x — Layer on modules, payments, data, and services to grow deal sizes",
+    ],
+    font_size=14
+)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 15 – Chapter: Common Pitfalls
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Chapter text - option 1'))
+set_placeholder_text(slide, 11, "07")
+set_placeholder_text(slide, 0, "Common Pitfalls\nto Avoid")
+set_placeholder_text(slide, 10, "Mistakes that derail vertical SaaS companies")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 16 – Pitfalls (2-block)
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Content - 2 blocks'))
+set_placeholder_text(slide, 0, "Six Common Pitfalls in Vertical SaaS")
+set_placeholder_text(slide, 18, "Learn from the mistakes of others")
+
+set_placeholder_text(slide, 19, "Strategic Pitfalls", bold=True)
+set_placeholder_bullets(slide, 1, [
+    "Going Too Broad Too Soon — Resist adjacent verticals before dominating your first one. Depth beats breadth early on.",
+    "Underestimating Compliance — Regulatory requirements aren't optional. Bake HIPAA, PCI, SOC 2, and industry regs in from day one.",
+    "Neglecting Data & Analytics — Your aggregated data is a strategic asset. Benchmarking and insights can become a standalone revenue stream.",
+], font_size=12)
+
+set_placeholder_text(slide, 22, "Execution Pitfalls", bold=True)
+set_placeholder_bullets(slide, 23, [
+    "Ignoring Services Revenue — Many verticals expect onboarding, training, and customization. Build a services motion — don't treat it as a distraction.",
+    "Building for Power Users Only — Your ICP may include non-technical users. If the UX requires training, you'll lose deals.",
+    "Over-Customizing Per Client — Custom work for one customer erodes margins. Build configurable, not custom. Say no to one-off requests.",
+], font_size=12)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 17 – Chapter: Scaling Framework
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Chapter text - option 2'))
+set_placeholder_text(slide, 11, "08")
+set_placeholder_text(slide, 0, "Scaling & Expansion\nFramework")
+set_placeholder_text(slide, 10, "From wedge product to industry platform")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 18 – Scaling (4-block)
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Content - 4 blocks option 1'))
+set_placeholder_text(slide, 0, "The Four Phases of Vertical SaaS Growth")
+set_placeholder_text(slide, 18, "A roadmap from first customer to ecosystem dominance")
+
+set_placeholder_text(slide, 33, "1")
+set_placeholder_text(slide, 19, "Phase 1: Wedge", bold=True)
+set_placeholder_bullets(slide, 29, [
+    "Single killer workflow",
+    "5-20 design partners",
+    "Prove ROI in one use case",
+    "Achieve product-market fit",
+], font_size=11)
+
+set_placeholder_text(slide, 34, "2")
+set_placeholder_text(slide, 28, "Phase 2: Suite", bold=True)
+set_placeholder_bullets(slide, 30, [
+    "Add adjacent workflows",
+    "Become system of record",
+    "Launch self-serve onboarding",
+    "Hit $1-5M ARR",
+], font_size=11)
+
+set_placeholder_text(slide, 35, "3")
+set_placeholder_text(slide, 25, "Phase 3: Platform", bold=True)
+set_placeholder_bullets(slide, 17, [
+    "APIs & integrations layer",
+    "Embedded fintech",
+    "Marketplace / app store",
+    "Hit $10-30M ARR",
+], font_size=11)
+
+set_placeholder_text(slide, 36, "4")
+set_placeholder_text(slide, 32, "Phase 4: Ecosystem", bold=True)
+set_placeholder_bullets(slide, 31, [
+    "Data & benchmarking products",
+    "Adjacent vertical expansion",
+    "M&A bolt-ons",
+    "Scale to $50M+ ARR",
+], font_size=11)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 19 – Chapter: Key Takeaways
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Chapter text - option 1'))
+set_placeholder_text(slide, 11, "09")
+set_placeholder_text(slide, 0, "Key Takeaways")
+set_placeholder_text(slide, 10, "What to remember from this guide")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 20 – Takeaways (content)
+# ═══════════════════════════════════════════════════════════════════
+slide = add_content_slide(
+    'Content',
+    "Key Takeaways",
+    "Six principles for succeeding with a vertical SaaS approach",
+    [
+        "Go deep before going wide — dominate one vertical before expanding to others",
+        "Build with domain experts, not just engineers — hire from the industry you serve",
+        "Compliance and workflows ARE the product — they are not afterthoughts or features",
+        "Your GTM is your moat — industry relationships and reputation compound over time",
+        "Layer revenue streams — software, payments, data products, and professional services",
+        "Vertical SaaS commands premium valuations (10-20x+ ARR) thanks to stickiness and expansion potential",
+    ],
+    font_size=15
+)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# SLIDE 21 – Closing / Quote
+# ═══════════════════════════════════════════════════════════════════
+slide = prs.slides.add_slide(get_layout('Quote / statement - gradient option 1'))
+set_placeholder_text(slide, 0, '"The riches are in the niches.\nVertical SaaS is the future of enterprise software."')
+set_placeholder_text(slide, 10, "Thank you — Questions?")
 
 
 # ── Save ──
-output_path = "/home/user/Claude-Code-April/Vertical_Approach_SaaS_Guide.pptx"
-prs.save(output_path)
-print(f"Presentation saved to: {output_path}")
+prs.save(OUTPUT)
+print(f"Presentation saved to: {OUTPUT}")
+print(f"Total slides: {len(prs.slides)}")
