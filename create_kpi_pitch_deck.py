@@ -1,672 +1,269 @@
 #!/usr/bin/env python3
-"""
-Generate KPI-Driven Operations Pitch Deck using SD Worx template.
-Enhanced visual design while maintaining SD Worx look & feel.
-"""
+"""Generate KPI-Driven Operations Pitch Deck. Clean modern design, no template."""
 
 from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
+from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
-from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+from pptx.enum.text import PP_ALIGN
 from pptx.enum.shapes import MSO_SHAPE
-from pptx.oxml.ns import qn
-import copy
 
-TEMPLATE = "/home/user/Claude-Code-April/2602 - SD Worx PowerPoint GOED .pptx"
 OUTPUT = "/home/user/Claude-Code-April/KPI_Driven_Operations_Pitch_Deck.pptx"
 
-# SD Worx theme colors
-DK1 = RGBColor(0x30, 0x36, 0x42)       # Dark navy
-ACCENT2 = RGBColor(0x43, 0x8A, 0xB5)   # Blue
-ACCENT3 = RGBColor(0x75, 0x82, 0x9B)   # Slate gray
-ACCENT4 = RGBColor(0xE4, 0xE6, 0xEC)   # Light gray
-ACCENT5 = RGBColor(0xFF, 0x4E, 0x0F)   # SD Worx Orange
-ACCENT6 = RGBColor(0x7A, 0x00, 0x51)   # SD Worx Purple/Magenta
+# Colors - SD Worx inspired but softer
+NAVY = RGBColor(0x2B, 0x30, 0x3A)
+BLUE = RGBColor(0x3D, 0x85, 0xB0)
+SLATE = RGBColor(0x6E, 0x7B, 0x8F)
+LIGHT = RGBColor(0xF2, 0xF3, 0xF5)
+ORANGE = RGBColor(0xF0, 0x55, 0x1E)
+PURPLE = RGBColor(0x6E, 0x0A, 0x4A)
 WHITE = RGBColor(0xFF, 0xFF, 0xFF)
-BLACK = RGBColor(0x00, 0x00, 0x00)
-LIGHT_BLUE = RGBColor(0xDB, 0xE9, 0xF1)  # Tinted blue background
-DARK_BLUE = RGBColor(0x2A, 0x5C, 0x7A)   # Darker accent blue
+TEAL = RGBColor(0x1A, 0x8C, 0x8C)
 
-# Slide dimensions (standard widescreen)
-SLIDE_W = Inches(13.333)
-SLIDE_H = Inches(7.5)
-
-# Load template
-prs = Presentation(TEMPLATE)
-
-layout_map = {}
-for layout in prs.slide_layouts:
-    layout_map[layout.name] = layout
-
-# Remove all existing slides
-while len(prs.slides) > 0:
-    rId = prs.slides._sldIdLst[0].get(
-        '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id'
-    )
-    prs.part.drop_rel(rId)
-    prs.slides._sldIdLst.remove(prs.slides._sldIdLst[0])
+prs = Presentation()
+prs.slide_width = Inches(13.333)
+prs.slide_height = Inches(7.5)
+BLANK = prs.slide_layouts[6]  # blank layout
 
 
-# ── Helper functions ──
-
-def get_layout(name):
-    if name in layout_map:
-        return layout_map[name]
-    for k, v in layout_map.items():
-        if name.lower() in k.lower():
-            return v
-    return prs.slide_layouts[0]
-
-
-def set_placeholder_text(slide, idx, text, font_size=None, bold=None, color=None):
-    for ph in slide.placeholders:
-        if ph.placeholder_format.idx == idx:
-            ph.text = text
-            if ph.text_frame.paragraphs:
-                para = ph.text_frame.paragraphs[0]
-                for run in para.runs:
-                    if font_size:
-                        run.font.size = Pt(font_size)
-                    if bold is not None:
-                        run.font.bold = bold
-                    if color:
-                        run.font.color.rgb = color
-            return ph
-    return None
+def txt(slide, l, t, w, h, text, sz=14, bold=False, color=NAVY, align=PP_ALIGN.LEFT):
+    box = slide.shapes.add_textbox(l, t, w, h)
+    box.text_frame.word_wrap = True
+    p = box.text_frame.paragraphs[0]
+    p.alignment = align
+    r = p.add_run()
+    r.text = text
+    r.font.size = Pt(sz)
+    r.font.bold = bold
+    r.font.color.rgb = color
+    r.font.name = "Roboto"
+    return box
 
 
-def set_placeholder_bullets(slide, idx, items, font_size=14, color=None):
-    for ph in slide.placeholders:
-        if ph.placeholder_format.idx == idx:
-            tf = ph.text_frame
-            tf.clear()
-            for i, item in enumerate(items):
-                p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-                p.text = item
-                p.font.size = Pt(font_size)
-                if color:
-                    p.font.color.rgb = color
-                p.space_after = Pt(6)
-            return ph
-    return None
+def multi(slide, l, t, w, h, lines, align=PP_ALIGN.LEFT):
+    """lines = [(text, size, bold, color), ...]"""
+    box = slide.shapes.add_textbox(l, t, w, h)
+    box.text_frame.word_wrap = True
+    for i, (text, sz, bold, color) in enumerate(lines):
+        p = box.text_frame.paragraphs[0] if i == 0 else box.text_frame.add_paragraph()
+        p.alignment = align
+        p.space_after = Pt(6)
+        r = p.add_run()
+        r.text = text
+        r.font.size = Pt(sz)
+        r.font.bold = bold
+        r.font.color.rgb = color
+        r.font.name = "Roboto"
 
 
-def add_shape(slide, shape_type, left, top, width, height, fill_color=None, line_color=None):
-    shape = slide.shapes.add_shape(shape_type, left, top, width, height)
-    if fill_color:
-        shape.fill.solid()
-        shape.fill.fore_color.rgb = fill_color
-    else:
-        shape.fill.background()
-    if line_color:
-        shape.line.color.rgb = line_color
-    else:
-        shape.line.fill.background()
-    return shape
+def card(slide, l, t, w, h, title, bullets, bg=NAVY, tc=WHITE, bc=WHITE):
+    s = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, l, t, w, h)
+    s.fill.solid()
+    s.fill.fore_color.rgb = bg
+    s.line.fill.background()
+    s.adjustments[0] = 0.06
+    txt(slide, l + Inches(0.35), t + Inches(0.3), w - Inches(0.7), Inches(0.5),
+        title, sz=18, bold=True, color=tc)
+    lines = [(b, 13, False, bc) for b in bullets]
+    multi(slide, l + Inches(0.35), t + Inches(0.9), w - Inches(0.7), h - Inches(1.1), lines)
 
 
-def add_textbox(slide, left, top, width, height, text, font_size=14,
-                bold=False, color=DK1, alignment=PP_ALIGN.LEFT, font_name="Roboto"):
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
-    tf.word_wrap = True
-    p = tf.paragraphs[0]
-    p.alignment = alignment
-    run = p.add_run()
-    run.text = text
-    run.font.size = Pt(font_size)
-    run.font.bold = bold
-    run.font.color.rgb = color
-    run.font.name = font_name
-    return txBox
+def title_sub(slide, title, sub):
+    txt(slide, Inches(0.9), Inches(0.5), Inches(11), Inches(0.8),
+        title, sz=28, bold=True, color=NAVY)
+    txt(slide, Inches(0.9), Inches(1.2), Inches(11), Inches(0.5),
+        sub, sz=14, color=SLATE)
 
 
-def add_rich_textbox(slide, left, top, width, height, lines, alignment=PP_ALIGN.LEFT):
-    """Add a textbox with multiple lines, each with its own formatting.
-    lines: list of dicts with keys: text, font_size, bold, color, space_after, space_before
-    """
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
-    tf.word_wrap = True
-    for i, line_info in enumerate(lines):
-        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-        p.alignment = alignment
-        run = p.add_run()
-        run.text = line_info.get("text", "")
-        run.font.size = Pt(line_info.get("font_size", 14))
-        run.font.bold = line_info.get("bold", False)
-        run.font.color.rgb = line_info.get("color", DK1)
-        run.font.name = line_info.get("font_name", "Roboto")
-        if "space_after" in line_info:
-            p.space_after = Pt(line_info["space_after"])
-        if "space_before" in line_info:
-            p.space_before = Pt(line_info["space_before"])
-    return txBox
+# ── SLIDE 1: Titel ──
+s = prs.slides.add_slide(BLANK)
+bg = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(0.4), Inches(0.4),
+                         Inches(12.5), Inches(6.7))
+bg.fill.solid()
+bg.fill.fore_color.rgb = NAVY
+bg.line.fill.background()
+bg.adjustments[0] = 0.03
+txt(s, Inches(1.2), Inches(2.0), Inches(10), Inches(1.5),
+    "Driving Value Through\nKPI-Driven Operations", sz=42, bold=True, color=WHITE, align=PP_ALIGN.LEFT)
+# orange accent line
+ln = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(1.2), Inches(3.9), Inches(2.5), Pt(4))
+ln.fill.solid()
+ln.fill.fore_color.rgb = ORANGE
+ln.line.fill.background()
+txt(s, Inches(1.2), Inches(4.2), Inches(10), Inches(0.6),
+    "Van inzicht naar actie per afdeling", sz=20, color=RGBColor(0xBB, 0xBF, 0xC7))
+txt(s, Inches(1.2), Inches(6.0), Inches(3), Inches(0.4), "2026", sz=14, color=SLATE)
 
+# ── SLIDE 2: Kernboodschap ──
+s = prs.slides.add_slide(BLANK)
+title_sub(s, "Waarom KPI-gedreven werken?", "De kernboodschap")
+card(s, Inches(0.9), Inches(2.0), Inches(11.5), Inches(4.5),
+     "", [
+         "Zonder duidelijke KPI's  -->  geen focus",
+         "",
+         "Zonder focus  -->  geen voorspelbare resultaten",
+         "",
+         "Zonder resultaten  -->  geen schaalbare groei",
+     ], bg=NAVY, tc=WHITE, bc=RGBColor(0xCC, 0xCF, 0xD5))
+txt(s, Inches(1.3), Inches(5.2), Inches(10), Inches(0.5),
+    "Elk team moet sturen op meetbare waarde", sz=20, bold=True, color=ORANGE)
 
-def add_bullet_list(slide, left, top, width, height, items, font_size=14,
-                    color=DK1, bullet_color=ACCENT5, spacing=8):
-    """Add a bulleted list with orange bullet markers."""
-    txBox = slide.shapes.add_textbox(left, top, width, height)
-    tf = txBox.text_frame
-    tf.word_wrap = True
-    for i, item in enumerate(items):
-        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
-        p.alignment = PP_ALIGN.LEFT
-        # Add bullet character
-        bullet_run = p.add_run()
-        bullet_run.text = "\u25CF  "  # filled circle
-        bullet_run.font.size = Pt(font_size - 2)
-        bullet_run.font.color.rgb = bullet_color
-        bullet_run.font.name = "Roboto"
-        # Add text
-        text_run = p.add_run()
-        text_run.text = item
-        text_run.font.size = Pt(font_size)
-        text_run.font.color.rgb = color
-        text_run.font.name = "Roboto"
-        p.space_after = Pt(spacing)
-    return txBox
+# ── SLIDE 3: Ons uitgangspunt ──
+s = prs.slides.add_slide(BLANK)
+title_sub(s, "Een manier van werken, meerdere teams", "Ons uitgangspunt")
+card(s, Inches(0.9), Inches(2.0), Inches(5.5), Inches(4.5),
+     "Elk team heeft:", [
+         "Een duidelijke doelstelling",
+         "Een set KPI's",
+         "Inzicht in bijdrage aan totaalresultaat",
+     ], bg=BLUE)
+card(s, Inches(6.9), Inches(2.0), Inches(5.5), Inches(4.5),
+     "KPI's zijn:", [
+         "Beinvloedbaar door het team",
+         "Meetbaar en concreet",
+         "Gekoppeld aan waarde",
+     ], bg=PURPLE)
 
+# ── SLIDE 4: Top-down + Bottom-up ──
+s = prs.slides.add_slide(BLANK)
+title_sub(s, "Balans tussen centrale sturing en team ownership", "Top-down + Bottom-up")
+card(s, Inches(0.9), Inches(2.0), Inches(5.5), Inches(4.0),
+     "Top-down KPI's", [
+         "Strategische doelen organisatie",
+         "Financiele performance",
+         "Klantimpact",
+     ], bg=NAVY)
+card(s, Inches(6.9), Inches(2.0), Inches(5.5), Inches(4.0),
+     "Bottom-up KPI's", [
+         "Team-specifieke metrics",
+         "Operationele drivers",
+         "Dagelijkse sturing",
+     ], bg=TEAL)
+# bottom callout
+cb = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(3.5), Inches(6.3),
+                         Inches(6.3), Inches(0.7))
+cb.fill.solid()
+cb.fill.fore_color.rgb = LIGHT
+cb.line.fill.background()
+cb.adjustments[0] = 0.3
+txt(s, Inches(3.7), Inches(6.38), Inches(5.9), Inches(0.5),
+    "Samen vormen ze een KPI-structuur", sz=15, bold=True, color=NAVY, align=PP_ALIGN.CENTER)
 
-def add_card(slide, left, top, width, height, title, items, title_color=WHITE,
-             bg_color=DK1, text_color=WHITE, title_size=16, text_size=13,
-             bullet_color=ACCENT5, corner_radius=None):
-    """Add a card-style box with title and bullet items."""
-    # Background rounded rectangle
-    shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, left, top, width, height)
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = bg_color
-    shape.line.fill.background()
-    # Adjust corner rounding
-    if corner_radius is not None:
-        shape.adjustments[0] = corner_radius
-
-    # Title
-    add_textbox(slide, left + Inches(0.3), top + Inches(0.25), width - Inches(0.6), Inches(0.5),
-                title, font_size=title_size, bold=True, color=title_color)
-
-    # Separator line
-    line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,
-                                  left + Inches(0.3), top + Inches(0.75),
-                                  Inches(1.2), Pt(3))
-    line.fill.solid()
-    line.fill.fore_color.rgb = bullet_color
-    line.line.fill.background()
-
-    # Bullet items
-    if items:
-        add_bullet_list(slide, left + Inches(0.3), top + Inches(0.95),
-                        width - Inches(0.6), height - Inches(1.2),
-                        items, font_size=text_size, color=text_color,
-                        bullet_color=bullet_color, spacing=6)
-
-
-def add_blank_slide():
-    """Add a blank slide using a minimal layout."""
-    # Try to find a blank or minimal layout
-    for name in ['Blank', 'blank', 'Leeg']:
-        if name in layout_map:
-            return prs.slides.add_slide(layout_map[name])
-    # Fallback: use the first layout
-    return prs.slides.add_slide(prs.slide_layouts[0])
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 1 – Titel (Cover)
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(get_layout('Cover text - option 1'))
-set_placeholder_text(slide, 0, "Driving Value Through\nKPI-Driven Operations")
-set_placeholder_text(slide, 10, "Van inzicht naar actie per afdeling")
-set_placeholder_text(slide, 12, "")
-set_placeholder_text(slide, 13, "2026")
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 2 – De kernboodschap
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(get_layout('Quote / statement - gradient option 1'))
-set_placeholder_text(slide, 0,
-    "Zonder duidelijke KPI's → geen focus\n"
-    "Zonder focus → geen voorspelbare resultaten\n"
-    "Zonder resultaten → geen schaalbare groei")
-set_placeholder_text(slide, 10, "Elk team moet sturen op meetbare waarde")
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 3 – Ons uitgangspunt
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(get_layout('Content - 2 blocks'))
-set_placeholder_text(slide, 0, "Eén manier van werken, meerdere teams")
-set_placeholder_text(slide, 18, "Ons uitgangspunt voor KPI-gedreven operatie")
-
-set_placeholder_text(slide, 19, "Elk team heeft:", bold=True)
-set_placeholder_bullets(slide, 1, [
-    "Een duidelijke doelstelling",
-    "Een set KPI's",
-    "Inzicht in bijdrage aan totaalresultaat",
-], font_size=14)
-
-set_placeholder_text(slide, 22, "KPI's zijn:", bold=True)
-set_placeholder_bullets(slide, 23, [
-    "Beïnvloedbaar door het team",
-    "Meetbaar en concreet",
-    "Gekoppeld aan waarde",
-], font_size=14)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 4 – Top-down + Bottom-up
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(get_layout('Content - 2 blocks'))
-set_placeholder_text(slide, 0, "Balans tussen centrale sturing en team ownership")
-set_placeholder_text(slide, 18, "Top-down + Bottom-up = één KPI-structuur")
-
-set_placeholder_text(slide, 19, "Top-down KPI's", bold=True)
-set_placeholder_bullets(slide, 1, [
-    "Strategische doelen organisatie",
-    "Financiële performance",
-    "Klantimpact",
-], font_size=14)
-
-set_placeholder_text(slide, 22, "Bottom-up KPI's", bold=True)
-set_placeholder_bullets(slide, 23, [
-    "Team-specifieke metrics",
-    "Operationele drivers",
-    "Dagelijkse sturing",
-], font_size=14)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 5 – Van strategie naar operatie (visual flow)
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(get_layout('Chapter text - option 1'))
-set_placeholder_text(slide, 11, "")
-set_placeholder_text(slide, 0, "Van strategie\nnaar operatie")
-set_placeholder_text(slide, 10, "Elke KPI moet leiden tot concreet gedrag")
-
-# We'll add the visual flow on a separate content slide
-slide2 = add_blank_slide()
-
-# Title bar at top
-add_textbox(slide2, Inches(0.8), Inches(0.5), Inches(11), Inches(0.7),
-            "Van strategie naar operatie", font_size=28, bold=True, color=DK1)
-
-# Subtitle
-add_textbox(slide2, Inches(0.8), Inches(1.15), Inches(11), Inches(0.5),
-            "Hoe strategische doelen vertalen naar dagelijkse acties", font_size=14, color=ACCENT3)
-
-# Flow boxes - horizontal cascade
-flow_items = [
-    ("Strategie", ACCENT6, "Organisatie-\ndoelstellingen"),
-    ("Centrale KPI's", DK1, "Financieel,\nklant, groei"),
-    ("Team KPI's", ACCENT2, "Per afdeling\nmeetbaar"),
-    ("Dagelijkse Acties", ACCENT5, "Concreet\ngedrag"),
+# ── SLIDE 5: Van strategie naar operatie (flow) ──
+s = prs.slides.add_slide(BLANK)
+title_sub(s, "Van strategie naar operatie", "Elke KPI moet leiden tot concreet gedrag")
+flow = [
+    ("Strategie", "Organisatie-\ndoelstellingen", PURPLE),
+    ("Centrale KPI's", "Financieel,\nklant, groei", NAVY),
+    ("Team KPI's", "Per afdeling\nmeetbaar", BLUE),
+    ("Dagelijkse Acties", "Concreet\ngedrag", ORANGE),
 ]
+bw = Inches(2.7)
+bh = Inches(3.5)
+gap = Inches(0.45)
+aw = Inches(0.3)
+sx = Inches(0.6)
+for i, (t, d, c) in enumerate(flow):
+    x = sx + i * (bw + gap + aw)
+    sh = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, Inches(2.2), bw, bh)
+    sh.fill.solid()
+    sh.fill.fore_color.rgb = c
+    sh.line.fill.background()
+    sh.adjustments[0] = 0.06
+    txt(s, x + Inches(0.2), Inches(2.6), bw - Inches(0.4), Inches(0.6),
+        t, sz=20, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+    # divider
+    dv = s.shapes.add_shape(MSO_SHAPE.RECTANGLE, x + Inches(0.6), Inches(3.4), bw - Inches(1.2), Pt(2))
+    dv.fill.solid()
+    dv.fill.fore_color.rgb = WHITE
+    dv.line.fill.background()
+    txt(s, x + Inches(0.2), Inches(3.7), bw - Inches(0.4), Inches(1.2),
+        d, sz=15, color=WHITE, align=PP_ALIGN.CENTER)
+    if i < 3:
+        ar = s.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW,
+                                x + bw + Inches(0.07), Inches(3.7), aw, Inches(0.35))
+        ar.fill.solid()
+        ar.fill.fore_color.rgb = SLATE
+        ar.line.fill.background()
 
-start_x = Inches(0.9)
-box_w = Inches(2.6)
-box_h = Inches(2.8)
-gap = Inches(0.55)
-arrow_w = Inches(0.35)
-y_pos = Inches(2.3)
-
-for i, (title, bg, desc) in enumerate(flow_items):
-    x = start_x + i * (box_w + gap + arrow_w)
-
-    # Main box
-    shape = slide2.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, y_pos, box_w, box_h)
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = bg
-    shape.line.fill.background()
-    shape.adjustments[0] = 0.05
-
-    # Title in box
-    add_textbox(slide2, x + Inches(0.2), y_pos + Inches(0.4), box_w - Inches(0.4), Inches(0.6),
-                title, font_size=20, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
-
-    # Divider line
-    div = slide2.shapes.add_shape(MSO_SHAPE.RECTANGLE,
-                                  x + Inches(0.5), y_pos + Inches(1.15),
-                                  box_w - Inches(1.0), Pt(2))
-    div.fill.solid()
-    div.fill.fore_color.rgb = WHITE
-    div.line.fill.background()
-
-    # Description
-    add_textbox(slide2, x + Inches(0.2), y_pos + Inches(1.4), box_w - Inches(0.4), Inches(1.2),
-                desc, font_size=15, color=WHITE, alignment=PP_ALIGN.CENTER)
-
-    # Arrow between boxes
-    if i < len(flow_items) - 1:
-        arrow_x = x + box_w + Inches(0.08)
-        arrow_y = y_pos + box_h / 2 - Inches(0.2)
-        arrow = slide2.shapes.add_shape(MSO_SHAPE.RIGHT_ARROW,
-                                        arrow_x, arrow_y, arrow_w, Inches(0.4))
-        arrow.fill.solid()
-        arrow.fill.fore_color.rgb = ACCENT3
-        arrow.line.fill.background()
-
-# Bottom callout
-callout = slide2.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                                  Inches(3.5), Inches(5.6), Inches(6.3), Inches(0.8))
-callout.fill.solid()
-callout.fill.fore_color.rgb = ACCENT4
-callout.line.fill.background()
-callout.adjustments[0] = 0.3
-
-add_textbox(slide2, Inches(3.7), Inches(5.7), Inches(5.9), Inches(0.6),
-            "\U0001F449 Elke KPI moet leiden tot concreet gedrag",
-            font_size=16, bold=True, color=DK1, alignment=PP_ALIGN.CENTER)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 6 – Recurring Services
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(get_layout('Content - 3 blocks'))
-set_placeholder_text(slide, 0, "Recurring Services – sturen op klantwaarde en efficiency")
-set_placeholder_text(slide, 18, "KPI's en focus voor het Recurring Services team")
-
-set_placeholder_text(slide, 19, "NPS", bold=True)
-set_placeholder_bullets(slide, 1, [
-    "Klanttevredenheid",
-    "Klantbehoud versterken",
-    "Signalen vroeg oppakken",
-], font_size=13)
-
-set_placeholder_text(slide, 28, "eNPS", bold=True)
-set_placeholder_bullets(slide, 29, [
-    "Medewerkerbetrokkenheid",
-    "Teamvitaliteit meten",
-    "Retentie waarborgen",
-], font_size=13)
-
-set_placeholder_text(slide, 25, "Contribution / Cost to Serve", bold=True)
-set_placeholder_bullets(slide, 30, [
-    "Efficiënte service delivery",
-    "Schaalbaarheid",
-    "Waarde per klant optimaliseren",
-], font_size=13)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 7 – Consulting
-# ═══════════════════════════════════════════════════════════════════
-slide = add_blank_slide()
-
-# Title
-add_textbox(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.7),
-            "Consulting – sturen op waardecreatie", font_size=28, bold=True, color=DK1)
-
-add_textbox(slide, Inches(0.8), Inches(1.15), Inches(11), Inches(0.5),
-            "Van uren schrijven naar aantoonbare klantwaarde", font_size=14, color=ACCENT3)
-
-# KPI cards - 2x2 grid
-card_data = [
-    ("tNPS", ["Initieel: onboarding/implementatie", "Klanttevredenheid bij trajectory", "Kwaliteit van oplevering"], ACCENT2),
-    ("eNPS", ["Medewerkerbetrokkenheid", "Teamdynamiek en groei", "Consultants als ambassadeurs"], DK1),
-    ("Revenue per FTE / Billability", ["Productiviteit per consultant", "Effectieve inzet van capaciteit", "Financiële gezondheid team"], ACCENT6),
-    ("Proven Value Time", ["(Toekomst) Tijd besteed met/voor klant", "Aantoonbare waardecreatie", "Meetbare klantimpact"], ACCENT5),
+# ── SLIDE 6: Recurring Services ──
+s = prs.slides.add_slide(BLANK)
+title_sub(s, "Recurring Services", "Sturen op klantwaarde en efficiency")
+cw = Inches(3.7)
+ch = Inches(4.0)
+cg = Inches(0.45)
+rs_data = [
+    ("NPS", ["Klanttevredenheid", "Klantbehoud versterken", "Signalen vroeg oppakken"], BLUE),
+    ("eNPS", ["Medewerkerbetrokkenheid", "Teamvitaliteit meten", "Retentie waarborgen"], NAVY),
+    ("Contribution /\nCost to Serve", ["Efficiente service delivery", "Schaalbaarheid", "Waarde per klant optimaliseren"], PURPLE),
 ]
+for i, (t, b, c) in enumerate(rs_data):
+    card(s, Inches(0.9) + i * (cw + cg), Inches(2.0), cw, ch, t, b, bg=c)
 
-cards_start_x = Inches(0.8)
-cards_start_y = Inches(1.9)
-card_w = Inches(5.8)
-card_h = Inches(2.4)
-card_gap_x = Inches(0.5)
-card_gap_y = Inches(0.35)
-
-for i, (title, items, accent) in enumerate(card_data):
-    col = i % 2
-    row = i // 2
-    x = cards_start_x + col * (card_w + card_gap_x)
-    y = cards_start_y + row * (card_h + card_gap_y)
-
-    add_card(slide, x, y, card_w, card_h, title, items,
-             title_color=WHITE, bg_color=accent, text_color=WHITE,
-             title_size=18, text_size=13, bullet_color=WHITE,
-             corner_radius=0.04)
-
-# Bottom banner
-banner = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                                Inches(2.5), Inches(6.85), Inches(8.3), Inches(0.55))
-banner.fill.solid()
-banner.fill.fore_color.rgb = ACCENT4
-banner.line.fill.background()
-banner.adjustments[0] = 0.4
-
-add_textbox(slide, Inches(2.7), Inches(6.9), Inches(7.9), Inches(0.45),
-            "\U0001F449 Belangrijke shift: van uren schrijven → naar aantoonbare klantwaarde",
-            font_size=14, bold=True, color=DK1, alignment=PP_ALIGN.CENTER)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 8 – KC (Knowledge Center)
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(get_layout('Content - 3 blocks'))
-set_placeholder_text(slide, 0, "KC – sturen op kwaliteit en adoptie")
-set_placeholder_text(slide, 18, "KPI's en focus voor het Knowledge Center team")
-
-set_placeholder_text(slide, 19, "Kennis & Kwaliteit", bold=True)
-set_placeholder_bullets(slide, 1, [
-    "Kennisborging",
-    "Kwaliteitsstandaarden",
-    "Kennisdeling bevorderen",
-], font_size=13)
-
-set_placeholder_text(slide, 28, "Compliance & Control", bold=True)
-set_placeholder_bullets(slide, 29, [
-    "Risicobeheersing",
-    "Naleving van regelgeving",
-    "Audit-readiness",
-], font_size=13)
-
-set_placeholder_text(slide, 25, "Training & Adoption", bold=True)
-set_placeholder_bullets(slide, 30, [
-    "Gebruik van oplossingen",
-    "Adoptiegraad verhogen",
-    "Continue ontwikkeling",
-], font_size=13)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 9 – Van KPI naar actie
-# ═══════════════════════════════════════════════════════════════════
-slide = prs.slides.add_slide(get_layout('Content - 4 blocks option 1'))
-set_placeholder_text(slide, 0, "Van KPI naar actie")
-set_placeholder_text(slide, 18, "Geen KPI zonder actieplan")
-
-set_placeholder_text(slide, 33, "1")
-set_placeholder_text(slide, 19, "KPI's definiëren", bold=True)
-set_placeholder_bullets(slide, 29, [
-    "Kies de juiste metrics",
-    "Koppel aan teamdoelstelling",
-    "Maak ze beïnvloedbaar",
-], font_size=11)
-
-set_placeholder_text(slide, 34, "2")
-set_placeholder_text(slide, 28, "Targets bepalen", bold=True)
-set_placeholder_bullets(slide, 30, [
-    "Realistisch maar ambitieus",
-    "Gebaseerd op baseline",
-    "Tijdsgebonden",
-], font_size=11)
-
-set_placeholder_text(slide, 35, "3")
-set_placeholder_text(slide, 25, "Acties koppelen", bold=True)
-set_placeholder_bullets(slide, 17, [
-    "Elke KPI → concrete actie",
-    "Verantwoordelijke toewijzen",
-    "Middelen alloceren",
-], font_size=11)
-
-set_placeholder_text(slide, 36, "4")
-set_placeholder_text(slide, 32, "Wekelijkse opvolging", bold=True)
-set_placeholder_bullets(slide, 31, [
-    "Voortgang monitoren",
-    "Bijsturen waar nodig",
-    "Successen vieren",
-], font_size=11)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 10 – Ownership bij de teams
-# ═══════════════════════════════════════════════════════════════════
-slide = add_blank_slide()
-
-# Title
-add_textbox(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.7),
-            "Ownership bij de teams", font_size=28, bold=True, color=DK1)
-
-add_textbox(slide, Inches(0.8), Inches(1.15), Inches(11), Inches(0.5),
-            "Wat verwachten we van elk team?", font_size=14, color=ACCENT3)
-
-# Four ownership pillars as vertical cards
-pillars = [
-    ("Begrijp je KPI's", "Weet wat je meet\nen waarom het\nbelangrijk is", "01"),
-    ("Weet hoe je ze\nbeïnvloedt", "Ken de hefbomen\ndie je als team\nkunt gebruiken", "02"),
-    ("Stuur actief bij", "Wacht niet af maar\nneem initiatief\nom bij te sturen", "03"),
-    ("Maak impact\nzichtbaar", "Laat resultaten\nzien en deel\nsuccessen", "04"),
+# ── SLIDE 7: Consulting ──
+s = prs.slides.add_slide(BLANK)
+title_sub(s, "Consulting", "Sturen op waardecreatie")
+con = [
+    ("tNPS", ["Onboarding / implementatie", "Klanttevredenheid bij trajectory", "Kwaliteit van oplevering"], BLUE),
+    ("eNPS", ["Medewerkerbetrokkenheid", "Teamdynamiek en groei", "Consultants als ambassadeurs"], NAVY),
+    ("Revenue per FTE /\nBillability", ["Productiviteit per consultant", "Effectieve inzet capaciteit", "Financiele gezondheid team"], TEAL),
+    ("Proven Value Time", ["(Toekomst) Tijd met/voor klant", "Aantoonbare waardecreatie", "Meetbare klantimpact"], ORANGE),
 ]
+cw2 = Inches(2.85)
+for i, (t, b, c) in enumerate(con):
+    card(s, Inches(0.7) + i * (cw2 + Inches(0.3)), Inches(2.0), cw2, Inches(4.0), t, b, bg=c)
+# bottom callout
+cb = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, Inches(2.5), Inches(6.3),
+                         Inches(8.3), Inches(0.7))
+cb.fill.solid()
+cb.fill.fore_color.rgb = LIGHT
+cb.line.fill.background()
+cb.adjustments[0] = 0.3
+txt(s, Inches(2.7), Inches(6.38), Inches(7.9), Inches(0.5),
+    "Belangrijke shift: van uren schrijven naar aantoonbare klantwaarde",
+    sz=14, bold=True, color=NAVY, align=PP_ALIGN.CENTER)
 
-pillar_w = Inches(2.7)
-pillar_h = Inches(4.5)
-pillar_gap = Inches(0.45)
-pillar_start_x = Inches(0.8)
-pillar_y = Inches(1.9)
-
-colors = [ACCENT6, DK1, ACCENT2, ACCENT5]
-
-for i, (title, desc, num) in enumerate(pillars):
-    x = pillar_start_x + i * (pillar_w + pillar_gap)
-    bg = colors[i]
-
-    # Card background
-    shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, pillar_y, pillar_w, pillar_h)
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = bg
-    shape.line.fill.background()
-    shape.adjustments[0] = 0.04
-
-    # Number circle
-    circle = slide.shapes.add_shape(MSO_SHAPE.OVAL,
-                                    x + Inches(0.9), pillar_y + Inches(0.4),
-                                    Inches(0.9), Inches(0.9))
-    circle.fill.solid()
-    circle.fill.fore_color.rgb = WHITE
-    circle.line.fill.background()
-
-    add_textbox(slide, x + Inches(0.9), pillar_y + Inches(0.5),
-                Inches(0.9), Inches(0.7),
-                num, font_size=24, bold=True, color=bg, alignment=PP_ALIGN.CENTER)
-
-    # Title
-    add_textbox(slide, x + Inches(0.2), pillar_y + Inches(1.6),
-                pillar_w - Inches(0.4), Inches(1.0),
-                title, font_size=17, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
-
-    # Description
-    add_textbox(slide, x + Inches(0.2), pillar_y + Inches(2.7),
-                pillar_w - Inches(0.4), Inches(1.4),
-                desc, font_size=14, color=WHITE, alignment=PP_ALIGN.CENTER)
-
-
-# ═══════════════════════════════════════════════════════════════════
-# SLIDE 11 – Next steps
-# ═══════════════════════════════════════════════════════════════════
-slide = add_blank_slide()
-
-# Title
-add_textbox(slide, Inches(0.8), Inches(0.5), Inches(11), Inches(0.7),
-            "Van inzicht naar implementatie", font_size=28, bold=True, color=DK1)
-
-add_textbox(slide, Inches(0.8), Inches(1.15), Inches(11), Inches(0.5),
-            "Next steps: workshops per afdeling", font_size=14, color=ACCENT3)
-
-# Left section: Workshop steps
-left_x = Inches(0.8)
-left_y = Inches(2.0)
-section_w = Inches(5.8)
-
-add_textbox(slide, left_x, left_y, section_w, Inches(0.5),
-            "Workshopreeks per afdeling", font_size=18, bold=True, color=DK1)
-
-# Step items with numbered circles
-steps = [
-    "Bepalen van teamwaarde",
-    "Vertalen naar KPI's",
-    "Koppelen aan concrete acties",
-    "Inrichten van ritme (weekly/monthly)",
+# ── SLIDE 8: KC ──
+s = prs.slides.add_slide(BLANK)
+title_sub(s, "KC - Knowledge Center", "Sturen op kwaliteit en adoptie")
+kc = [
+    ("Kennis & Kwaliteit", ["Kennisborging", "Kwaliteitsstandaarden", "Kennisdeling bevorderen"], BLUE),
+    ("Compliance & Control", ["Risicobeheersing", "Naleving van regelgeving", "Audit-readiness"], NAVY),
+    ("Training & Adoption", ["Gebruik van oplossingen", "Adoptiegraad verhogen", "Continue ontwikkeling"], PURPLE),
 ]
+for i, (t, b, c) in enumerate(kc):
+    card(s, Inches(0.9) + i * (cw + cg), Inches(2.0), cw, ch, t, b, bg=c)
 
-for i, step in enumerate(steps):
-    step_y = left_y + Inches(0.7) + i * Inches(0.75)
-
-    # Number circle
-    circle = slide.shapes.add_shape(MSO_SHAPE.OVAL,
-                                    left_x, step_y, Inches(0.5), Inches(0.5))
-    circle.fill.solid()
-    circle.fill.fore_color.rgb = ACCENT5
-    circle.line.fill.background()
-
-    add_textbox(slide, left_x, step_y + Inches(0.05),
-                Inches(0.5), Inches(0.4),
-                str(i + 1), font_size=16, bold=True, color=WHITE, alignment=PP_ALIGN.CENTER)
-
-    # Step text
-    add_textbox(slide, left_x + Inches(0.7), step_y + Inches(0.07),
-                section_w - Inches(0.7), Inches(0.4),
-                step, font_size=16, color=DK1)
-
-# Right section: Output card
-right_x = Inches(7.2)
-right_y = Inches(2.0)
-output_w = Inches(5.3)
-output_h = Inches(4.2)
-
-# Output card
-shape = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, right_x, right_y, output_w, output_h)
-shape.fill.solid()
-shape.fill.fore_color.rgb = DK1
-shape.line.fill.background()
-shape.adjustments[0] = 0.04
-
-add_textbox(slide, right_x + Inches(0.4), right_y + Inches(0.35),
-            output_w - Inches(0.8), Inches(0.5),
-            "Output per team", font_size=20, bold=True, color=WHITE)
-
-# Separator
-sep = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,
-                              right_x + Inches(0.4), right_y + Inches(0.95),
-                              Inches(1.5), Pt(3))
-sep.fill.solid()
-sep.fill.fore_color.rgb = ACCENT5
-sep.line.fill.background()
-
-outputs = [
-    "Heldere KPI-set",
-    "Concrete targets",
-    "Actieplan",
+# ── SLIDE 9: Ownership ──
+s = prs.slides.add_slide(BLANK)
+title_sub(s, "Ownership bij de teams", "Wat verwachten we van elk team?")
+own = [
+    ("Begrijp je KPI's", "Weet wat je meet en\nwaarom het belangrijk is", PURPLE),
+    ("Weet hoe je ze\nbeinvloedt", "Ken de hefbomen die\nje als team kunt gebruiken", NAVY),
+    ("Stuur actief bij", "Wacht niet af maar neem\ninitiatief om bij te sturen", BLUE),
+    ("Maak impact\nzichtbaar", "Laat resultaten zien\nen deel successen", ORANGE),
 ]
-
-add_bullet_list(slide, right_x + Inches(0.4), right_y + Inches(1.3),
-                output_w - Inches(0.8), Inches(2.5),
-                outputs, font_size=18, color=WHITE, bullet_color=ACCENT5, spacing=14)
-
-# Bottom bar with gradient feel
-bottom_bar = slide.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE,
-                                    Inches(0.8), Inches(6.6), Inches(11.7), Inches(0.7))
-bottom_bar.fill.solid()
-bottom_bar.fill.fore_color.rgb = ACCENT4
-bottom_bar.line.fill.background()
-bottom_bar.adjustments[0] = 0.3
-
-add_textbox(slide, Inches(1.0), Inches(6.68), Inches(11.3), Inches(0.5),
-            "\U0001F449 Laten we samen beginnen – elk team, elke KPI, elke actie telt",
-            font_size=15, bold=True, color=DK1, alignment=PP_ALIGN.CENTER)
-
+pw = Inches(2.8)
+ph = Inches(4.2)
+for i, (t, d, c) in enumerate(own):
+    x = Inches(0.7) + i * (pw + Inches(0.35))
+    sh = s.shapes.add_shape(MSO_SHAPE.ROUNDED_RECTANGLE, x, Inches(2.0), pw, ph)
+    sh.fill.solid()
+    sh.fill.fore_color.rgb = c
+    sh.line.fill.background()
+    sh.adjustments[0] = 0.06
+    # number circle
+    ci = s.shapes.add_shape(MSO_SHAPE.OVAL, x + pw/2 - Inches(0.35), Inches(2.4),
+                            Inches(0.7), Inches(0.7))
+    ci.fill.solid()
+    ci.fill.fore_color.rgb = WHITE
+    ci.line.fill.background()
+    txt(s, x + pw/2 - Inches(0.35), Inches(2.47), Inches(0.7), Inches(0.6),
+        f"0{i+1}", sz=20, bold=True, color=c, align=PP_ALIGN.CENTER)
+    txt(s, x + Inches(0.2), Inches(3.4), pw - Inches(0.4), Inches(0.8),
+        t, sz=17, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+    txt(s, x + Inches(0.2), Inches(4.3), pw - Inches(0.4), Inches(1.2),
+        d, sz=14, color=WHITE, align=PP_ALIGN.CENTER)
 
 # ── Save ──
 prs.save(OUTPUT)
-print(f"Presentation saved to: {OUTPUT}")
-print(f"Total slides: {len(prs.slides)}")
+print(f"Saved: {OUTPUT} ({len(prs.slides)} slides)")
