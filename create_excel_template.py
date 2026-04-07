@@ -35,7 +35,7 @@ total_row_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type
 subtotal_fill = PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")
 grand_total_fill = PatternFill(start_color="FFC000", end_color="FFC000", fill_type="solid")
 
-# Column layout: A=Edition, B=Service Level, C=Metric, D-I=Years (2026-2031)
+# Column layout: A=Service Level, B=Edition, C=Metric, D-I=Years (2026-2031)
 year_start_col = 4  # column D
 
 # Set column widths
@@ -47,8 +47,8 @@ for i, yr in enumerate(years):
 
 # Header row - Years
 row = 1
-ws.cell(row=row, column=1, value="Software Edition").font = header_font
-ws.cell(row=row, column=2, value="Service Level").font = header_font
+ws.cell(row=row, column=1, value="Service Level").font = header_font
+ws.cell(row=row, column=2, value="Software Edition").font = header_font
 ws.cell(row=row, column=3, value="Metric").font = header_font
 for i, yr in enumerate(years):
     cell = ws.cell(row=row, column=year_start_col + i, value=yr)
@@ -77,19 +77,18 @@ for market in markets:
 
     combo_total_rows = []  # track "Total" rows for subtotal
 
-    for edition in editions:
-        first_edition_row = current_row
-        for sl in service_levels:
+    for sl in service_levels:
+        for edition in editions:
             for m_idx, metric in enumerate(metrics):
                 cell_a = ws.cell(row=current_row, column=1)
                 cell_b = ws.cell(row=current_row, column=2)
                 cell_c = ws.cell(row=current_row, column=3, value=metric)
 
-                # Only show edition/service level label on first metric row
+                # Only show service level/edition label on first metric row
                 if m_idx == 0:
-                    cell_a.value = edition
+                    cell_a.value = sl
                     cell_a.font = subsection_font
-                    cell_b.value = sl
+                    cell_b.value = edition
                     cell_b.font = subsection_font
 
                 cell_a.border = thin_border
