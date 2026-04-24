@@ -1,0 +1,34 @@
+{
+  "handlers": {
+    ".py": {
+      "launcher": "python",
+      "args": [],
+      "label": "Python script"
+    },
+    ".exe": {
+      "launcher": "direct",
+      "args": [],
+      "label": "Executable"
+    },
+    ".bat": {
+      "launcher": "direct",
+      "args": [],
+      "label": "Batch file"
+    },
+    ".ps1": {
+      "launcher": "powershell",
+      "args": [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File"
+      ],
+      "label": "PowerShell"
+    },
+    ".js": {
+      "launcher": "node",
+      "args": [],
+      "label": "Node.js script"
+    }
+  },
+  "ssl_verify": false
+}
